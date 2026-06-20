@@ -1,4 +1,4 @@
-name: CI
+name: Test Logytics Action
 
 on:
   workflow_dispatch:
@@ -7,14 +7,19 @@ on:
     paths:
       - '.github/workflows/test.yml'
 
+permissions:
+  actions: read
+  contents: read
+  checks: read
+
 jobs:
-  test:
+  test-typescript-error:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Run failing test
+      - name: Run failing test (TypeError)
         run: |
           echo "> jest --coverage"
           echo ""
@@ -35,3 +40,37 @@ jobs:
           echo "Test Suites: 1 failed, 1 total"
           echo "Tests:       1 failed, 2 passed, 3 total"
           exit 1
+
+  test-module-error:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run failing build (Module not found)
+        run: |
+          echo "> npm run build"
+          echo ""
+          echo "Building project..."
+          echo ""
+          echo "ERROR in ./src/components/Dashboard.tsx"
+          echo "Module not found: Error: Can't resolve '@/utils/helpers'"
+          echo "  at /home/runner/work/app/src/components/Dashboard.tsx:3:1"
+          echo ""
+          echo "Import trace for requested module:"
+          echo "  ./src/components/Dashboard.tsx"
+          echo "  ./src/pages/index.tsx"
+          echo ""
+          echo "error Command failed with exit code 1."
+          exit 1
+
+  analyze:
+    runs-on: ubuntu-latest
+    needs: [test-typescript-error, test-module-error]
+    if: always() && (needs.test-typescript-error.result == 'failure' || needs.test-module-error.result == 'failure')
+    steps:
+      - name: Logytics Analysis
+        uses: logytics-pro/action@v1
+        with:
+          logytics-api-key: ${{ secrets.LOGYTICS_API_KEY }}
+          workflow-run-id: ${{ github.run_id }}
