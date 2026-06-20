@@ -46,10 +46,17 @@ async function getFailedSteps(token) {
   return failedSteps;
 }
 
+async function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 async function fetchJobLogs(token, jobId) {
   try {
     const octokit = github.getOctokit(token);
     const { context } = github;
+
+    // Wait briefly for GitHub to finalize logs
+    await sleep(2000);
 
     const { data } = await octokit.rest.actions.downloadJobLogsForWorkflowRun({
       owner: context.repo.owner,
@@ -60,7 +67,24 @@ async function fetchJobLogs(token, jobId) {
     return data;
   } catch (e) {
     core.warning(`Could not fetch job logs: ${e.message}`);
-    return null;
+
+    // Try workflow run logs as fallback
+    try {
+      const { context } = github;
+      const octokit = github.getOctokit(token);
+
+      const { data } = await octokit.rest.actions.downloadWorkflowRunLogs({
+        owner: context.repo.owner,
+        repo: context.repo.repo,
+        run_id: context.runId,
+      });
+
+      core.info("Got workflow run logs as fallback");
+      return data;
+    } catch (e2) {
+      core.warning(`Could not fetch workflow logs either: ${e2.message}`);
+      return null;
+    }
   }
 }
 
@@ -85,8 +109,11 @@ async function collectLogs(token) {
         core.info(`Fetching logs for job: ${job.name} (${job.id})...`);
         const jobLogs = await fetchJobLogs(token, job.id);
         if (jobLogs) {
-          logs.push(jobLogs);
-          core.info(`Got ${jobLogs.length} bytes of logs`);
+          const logStr = typeof jobLogs === 'string' ? jobLogs : JSON.stringify(jobLogs);
+          logs.push(logStr);
+          core.info(`Got ${logStr.length} bytes of logs (type: ${typeof jobLogs})`);
+          // Show preview of logs
+          core.info(`Log preview: ${logStr.substring(0, 500)}`);
         }
       }
     }
