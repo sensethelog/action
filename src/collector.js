@@ -1,8 +1,46 @@
 const fs = require("fs");
 const path = require("path");
+const github = require("@actions/github");
+const core = require("@actions/core");
 
-async function collectLogs() {
+async function getFailedSteps(token) {
+  const failedSteps = [];
+
+  try {
+    const octokit = github.getOctokit(token);
+    const { context } = github;
+
+    const { data: jobs } = await octokit.rest.actions.listJobsForWorkflowRun({
+      owner: context.repo.owner,
+      repo: context.repo.repo,
+      run_id: context.runId,
+    });
+
+    for (const job of jobs.jobs) {
+      if (job.status === "completed") {
+        for (const step of job.steps || []) {
+          if (step.conclusion === "failure") {
+            failedSteps.push({
+              jobName: job.name,
+              stepName: step.name,
+              stepNumber: step.number,
+              startedAt: step.started_at,
+              completedAt: step.completed_at,
+            });
+          }
+        }
+      }
+    }
+  } catch (e) {
+    core.warning(`Could not fetch failed steps: ${e.message}`);
+  }
+
+  return failedSteps;
+}
+
+async function collectLogs(token) {
   const logs = [];
+  const failedSteps = await getFailedSteps(token);
 
   if (process.env.GITHUB_STEP_SUMMARY) {
     try {
@@ -47,10 +85,13 @@ async function collectLogs() {
   }
 
   if (logs.length === 0) {
-    return "No logs collected. Ensure previous steps output logs to standard files.";
+    return {
+      logs: "No logs collected. Ensure previous steps output logs to standard files.",
+      failedSteps
+    };
   }
 
-  return logs.join("\n\n");
+  return { logs: logs.join("\n\n"), failedSteps };
 }
 
-module.exports = { collectLogs };
+module.exports = { collectLogs, getFailedSteps };

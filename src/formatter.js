@@ -1,10 +1,22 @@
-function formatSummary(result) {
+function formatSummary(result, failedSteps = []) {
   const parts = [];
 
   parts.push("## Logytics Pro Analysis\n");
 
   if (result.isRecurring) {
     parts.push(`> **Warning**: This is a recurring failure (seen ${result.occurrences} times)\n`);
+  }
+
+  if (failedSteps.length > 0) {
+    parts.push("### Failed Steps\n");
+    parts.push(`| Job | Step | Started | Completed |`);
+    parts.push(`| --- | --- | --- | --- |`);
+    failedSteps.forEach(step => {
+      const started = step.startedAt ? new Date(step.startedAt).toLocaleTimeString() : "-";
+      const completed = step.completedAt ? new Date(step.completedAt).toLocaleTimeString() : "-";
+      parts.push(`| ${step.jobName} | **${step.stepName}** | ${started} | ${completed} |`);
+    });
+    parts.push("");
   }
 
   parts.push("### Failure Details\n");

@@ -7,16 +7,20 @@ Turn CI failures into actionable intelligence.
 Add this to your workflow file:
 
 ```yaml
-- uses: logytics/action@v1
+- uses: logytics-pro/action@v1
   if: failure()
   with:
     logytics-api-key: ${{ secrets.LOGYTICS_API_KEY }}
 ```
 
+No `continue-on-error` required on other steps. The action automatically detects which steps failed and includes them in the analysis summary.
+
 ## Features
 
+- **Failed Step Detection**: Automatically identifies which steps failed in your workflow
 - **Instant Analysis**: Get AI-powered root cause analysis within seconds
 - **Pattern Detection**: Automatically detect recurring failures
+- **Job Summary**: See failed steps and analysis directly in the GitHub Actions summary
 - **Dashboard Integration**: View all failures in the Logytics Pro dashboard
 - **Team Insights**: Share knowledge across your organization
 
@@ -25,6 +29,7 @@ Add this to your workflow file:
 | Input | Description | Required |
 |-------|-------------|----------|
 | `logytics-api-key` | Your Logytics Pro API key | Yes |
+| `github-token` | GitHub token for fetching failed steps (auto-provided) | No |
 | `api-url` | Custom API URL | No |
 | `openai-api-key` | OpenAI key for free mode | No |
 
@@ -37,6 +42,7 @@ Add this to your workflow file:
 | `is-recurring` | Whether this is a recurring failure |
 | `root-cause` | AI-generated root cause analysis |
 | `suggested-fix` | AI-suggested fix |
+| `failed-steps` | JSON array of failed steps with job/step names |
 
 ## Full Example
 

@@ -9,8 +9,9 @@ const { formatSummary } = require("./formatter");
 async function run() {
   try {
     const apiKey = core.getInput("logytics-api-key", { required: true });
-    const apiUrl = core.getInput("api-url") || "https://api.logytics.dev";
+    const apiUrl = core.getInput("api-url") || "https://website-production-28cf.up.railway.app";
     const openaiKey = core.getInput("openai-api-key");
+    const githubToken = core.getInput("github-token") || process.env.GITHUB_TOKEN;
 
     const { context } = github;
     const repo = `${context.repo.owner}/${context.repo.repo}`;
@@ -18,7 +19,14 @@ async function run() {
     const workflowName = context.workflow;
 
     core.info("Logytics: Collecting CI logs...");
-    const rawLogs = await collectLogs();
+    const { logs: rawLogs, failedSteps } = await collectLogs(githubToken);
+
+    if (failedSteps.length > 0) {
+      core.info(`Logytics: Found ${failedSteps.length} failed step(s)`);
+      failedSteps.forEach(step => {
+        core.info(`  - ${step.jobName} > ${step.stepName}`);
+      });
+    }
 
     core.info("Logytics: Processing logs...");
     const cleanedLogs = cleanLogs(rawLogs);
@@ -32,6 +40,7 @@ async function run() {
       workflowName,
       logs: cleanedLogs,
       signature,
+      failedSteps,
     };
 
     core.info("Logytics: Sending to API...");
@@ -42,8 +51,9 @@ async function run() {
     core.setOutput("is-recurring", result.isRecurring);
     core.setOutput("root-cause", result.rootCause || "");
     core.setOutput("suggested-fix", result.suggestedFix || "");
+    core.setOutput("failed-steps", JSON.stringify(failedSteps));
 
-    const summary = formatSummary(result);
+    const summary = formatSummary(result, failedSteps);
     await core.summary.addRaw(summary).write();
 
     if (result.isRecurring) {

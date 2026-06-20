@@ -9,10 +9,14 @@ inputs:
   logytics-api-key:
     description: 'Your Logytics Pro API key'
     required: true
+  github-token:
+    description: 'GitHub token to fetch failed step details (defaults to GITHUB_TOKEN)'
+    required: false
+    default: ${{ github.token }}
   api-url:
     description: 'Logytics Pro API URL (optional)'
     required: false
-    default: 'https://api.logytics.dev'
+    default: 'https://website-production-28cf.up.railway.app'
   openai-api-key:
     description: 'OpenAI API key for free mode analysis (optional)'
     required: false
@@ -28,6 +32,8 @@ outputs:
     description: 'AI-generated root cause analysis'
   suggested-fix:
     description: 'AI-suggested fix for the failure'
+  failed-steps:
+    description: 'JSON array of failed steps with job and step names'
 
 runs:
   using: 'node20'
