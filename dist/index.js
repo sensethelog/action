@@ -30390,7 +30390,26 @@ function formatSummary(result, failedSteps = [], context = {}) {
   // Suggested Fix
   if (result.suggestedFix) {
     parts.push("### Suggested Fix\n");
-    parts.push(result.suggestedFix);
+    // Format bullet points properly - convert "1. " or "- " inline to newlines
+    let fix = result.suggestedFix;
+    // Convert numbered lists that might be inline
+    fix = fix.replace(/(\d+)\.\s+/g, '\n$1. ');
+    // Convert bullet points that might be inline
+    fix = fix.replace(/\s+-\s+/g, '\n- ');
+    // Clean up any double newlines
+    fix = fix.replace(/\n\n+/g, '\n\n');
+    // Trim leading newline if added
+    fix = fix.trim();
+    parts.push(fix);
+    parts.push("");
+  }
+
+  // Code Example
+  if (result.codeExample) {
+    parts.push("### Example Fix\n");
+    parts.push("```" + (result.codeLanguage || ""));
+    parts.push(result.codeExample);
+    parts.push("```");
     parts.push("");
   }
 
