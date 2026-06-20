@@ -29995,10 +29995,80 @@ module.exports = { sendToApi };
 
 const fs = __nccwpck_require__(9896);
 const path = __nccwpck_require__(6928);
+const github = __nccwpck_require__(5683);
+const core = __nccwpck_require__(7184);
 
-async function collectLogs() {
+async function getFailedSteps(token) {
+  const failedSteps = [];
+
+  try {
+    const octokit = github.getOctokit(token);
+    const { context } = github;
+
+    const { data: jobs } = await octokit.rest.actions.listJobsForWorkflowRun({
+      owner: context.repo.owner,
+      repo: context.repo.repo,
+      run_id: context.runId,
+    });
+
+    for (const job of jobs.jobs) {
+      if (job.status === "completed" || job.status === "in_progress") {
+        for (const step of job.steps || []) {
+          if (step.conclusion === "failure") {
+            failedSteps.push({
+              jobId: job.id,
+              jobName: job.name,
+              stepName: step.name,
+              stepNumber: step.number,
+              startedAt: step.started_at,
+              completedAt: step.completed_at,
+            });
+          }
+        }
+      }
+    }
+  } catch (e) {
+    core.warning(`Could not fetch failed steps: ${e.message}`);
+  }
+
+  return failedSteps;
+}
+
+async function fetchJobLogs(token, jobId) {
+  try {
+    const octokit = github.getOctokit(token);
+    const { context } = github;
+
+    const { data } = await octokit.rest.actions.downloadJobLogsForWorkflowRun({
+      owner: context.repo.owner,
+      repo: context.repo.repo,
+      job_id: jobId,
+    });
+
+    return data;
+  } catch (e) {
+    core.warning(`Could not fetch job logs: ${e.message}`);
+    return null;
+  }
+}
+
+async function collectLogs(token) {
   const logs = [];
+  const failedSteps = await getFailedSteps(token);
 
+  // Fetch actual job logs from GitHub API
+  const jobIds = [...new Set(failedSteps.map(s => s.jobId))];
+  for (const jobId of jobIds) {
+    if (jobId) {
+      core.info(`Fetching logs for job ${jobId}...`);
+      const jobLogs = await fetchJobLogs(token, jobId);
+      if (jobLogs) {
+        logs.push(jobLogs);
+      }
+    }
+  }
+
+  // Also check GITHUB_STEP_SUMMARY
   if (process.env.GITHUB_STEP_SUMMARY) {
     try {
       const summaryPath = process.env.GITHUB_STEP_SUMMARY;
@@ -30006,16 +30076,16 @@ async function collectLogs() {
         logs.push(fs.readFileSync(summaryPath, "utf8"));
       }
     } catch (e) {
+      // ignore
     }
   }
 
+  // Check for common log files
   const workspace = process.env.GITHUB_WORKSPACE || ".";
-
   const logPatterns = [
     "npm-debug.log",
     "yarn-error.log",
     "pnpm-debug.log",
-    ".npm/_logs/*.log",
     "jest.log",
     "test-results.log",
   ];
@@ -30030,25 +30100,136 @@ async function collectLogs() {
         }
       }
     } catch (e) {
+      // ignore
     }
   }
 
+  // Check env vars
   if (process.env.BUILD_LOG) {
     logs.push(process.env.BUILD_LOG);
   }
-
   if (process.env.TEST_OUTPUT) {
     logs.push(process.env.TEST_OUTPUT);
   }
 
   if (logs.length === 0) {
-    return "No logs collected. Ensure previous steps output logs to standard files.";
+    return {
+      logs: "No logs collected. The action runs after the failed step completes.",
+      failedSteps
+    };
   }
 
-  return logs.join("\n\n");
+  // Combine and limit size
+  let combined = logs.join("\n\n");
+  if (combined.length > 50000) {
+    combined = combined.substring(combined.length - 50000);
+  }
+
+  return { logs: combined, failedSteps };
 }
 
-module.exports = { collectLogs };
+module.exports = { collectLogs, getFailedSteps };
+
+
+/***/ }),
+
+/***/ 1604:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+const github = __nccwpck_require__(5683);
+const core = __nccwpck_require__(7184);
+
+async function createFixPR(token, analysis, context) {
+  if (!analysis.codeFix || !analysis.codeFix.file || !analysis.codeFix.content) {
+    core.info("No code fix available for auto-PR");
+    return null;
+  }
+
+  const octokit = github.getOctokit(token);
+  const { owner, repo } = context.repo;
+  const baseBranch = context.ref.replace("refs/heads/", "");
+  const fixBranch = `logytics-fix/${context.sha.substring(0, 7)}`;
+
+  try {
+    // Get the base branch ref
+    const { data: baseRef } = await octokit.rest.git.getRef({
+      owner,
+      repo,
+      ref: `heads/${baseBranch}`,
+    });
+
+    // Create new branch
+    core.info(`Creating branch: ${fixBranch}`);
+    await octokit.rest.git.createRef({
+      owner,
+      repo,
+      ref: `refs/heads/${fixBranch}`,
+      sha: baseRef.object.sha,
+    });
+
+    // Get current file content (if exists)
+    let currentSha = null;
+    try {
+      const { data: currentFile } = await octokit.rest.repos.getContent({
+        owner,
+        repo,
+        path: analysis.codeFix.file,
+        ref: fixBranch,
+      });
+      currentSha = currentFile.sha;
+    } catch (e) {
+      // File doesn't exist, that's ok
+    }
+
+    // Create or update file
+    core.info(`Updating file: ${analysis.codeFix.file}`);
+    await octokit.rest.repos.createOrUpdateFileContents({
+      owner,
+      repo,
+      path: analysis.codeFix.file,
+      message: `fix: ${analysis.rootCause}\n\nAuto-generated by Logytics`,
+      content: Buffer.from(analysis.codeFix.content).toString("base64"),
+      branch: fixBranch,
+      sha: currentSha,
+    });
+
+    // Create PR
+    core.info("Creating pull request...");
+    const { data: pr } = await octokit.rest.pulls.create({
+      owner,
+      repo,
+      title: `🔧 Fix: ${analysis.rootCause.substring(0, 60)}`,
+      body: `## Auto-generated Fix by Logytics
+
+### Root Cause
+${analysis.rootCause}
+
+### Explanation
+${analysis.explanation || "See the suggested fix below."}
+
+### Changes Made
+- Modified \`${analysis.codeFix.file}\`
+
+### Confidence
+${analysis.confidence >= 80 ? "🟢" : analysis.confidence >= 50 ? "🟡" : "🔴"} **${analysis.confidence}%**
+
+---
+⚠️ **Please review this PR carefully before merging.**
+
+*Generated by [Logytics](https://logytics.dev)*`,
+      head: fixBranch,
+      base: baseBranch,
+    });
+
+    core.info(`PR created: ${pr.html_url}`);
+    return pr.html_url;
+  } catch (error) {
+    core.warning(`Failed to create fix PR: ${error.message}`);
+    return null;
+  }
+}
+
+module.exports = { createFixPR };
 
 
 /***/ }),
@@ -30056,38 +30237,82 @@ module.exports = { collectLogs };
 /***/ 1320:
 /***/ ((module) => {
 
-function formatSummary(result) {
+function formatSummary(result, failedSteps = [], context = {}) {
   const parts = [];
 
-  parts.push("## Logytics Pro Analysis\n");
+  // Header
+  parts.push("## Logytics Analysis\n");
 
+  // Workflow info
+  const workflowInfo = [];
+  if (context.workflowName) workflowInfo.push(`Workflow: ${context.workflowName}`);
+  if (context.branch) workflowInfo.push(`Branch: ${context.branch}`);
+  if (context.commitSha) workflowInfo.push(`Commit: ${context.commitSha.substring(0, 7)}`);
+  if (workflowInfo.length > 0) {
+    parts.push(`**${workflowInfo.join(" | ")}**\n`);
+  }
+
+  // Recurring warning
   if (result.isRecurring) {
-    parts.push(`> **Warning**: This is a recurring failure (seen ${result.occurrences} times)\n`);
+    parts.push(`> ⚠️ **Recurring Failure** - This issue has occurred ${result.occurrences} times\n`);
   }
 
-  parts.push("### Failure Details\n");
-  parts.push(`| Property | Value |`);
-  parts.push(`| --- | --- |`);
-  parts.push(`| **Signature** | \`${result.signature}\` |`);
-  parts.push(`| **Failure ID** | \`${result.id}\` |`);
-  parts.push(`| **Recurring** | ${result.isRecurring ? "Yes" : "No"} |`);
+  // Failed Steps
+  if (failedSteps.length > 0) {
+    parts.push("### Failed Steps\n");
+    failedSteps.forEach(step => {
+      parts.push(`- ❌ **${step.jobName}** → ${step.stepName}`);
+    });
+    parts.push("");
+  }
 
+  // Root Cause
   if (result.rootCause) {
-    parts.push("\n### Root Cause\n");
+    parts.push("### Root Cause\n");
     parts.push(result.rootCause);
+    parts.push("");
   }
 
+  // Key Error
+  if (result.keyError) {
+    parts.push("### Key Error\n");
+    parts.push("```");
+    parts.push(result.keyError);
+    parts.push("```");
+    parts.push("");
+  }
+
+  // Explanation
+  if (result.explanation) {
+    parts.push("### Explanation\n");
+    parts.push(result.explanation);
+    parts.push("");
+  }
+
+  // Suggested Fix
   if (result.suggestedFix) {
-    parts.push("\n### Suggested Fix\n");
+    parts.push("### Suggested Fix\n");
     parts.push(result.suggestedFix);
+    parts.push("");
   }
 
+  // Confidence
   if (result.confidence) {
-    parts.push(`\n*Analysis confidence: ${result.confidence}%*`);
+    const emoji = result.confidence >= 80 ? "🟢" : result.confidence >= 50 ? "🟡" : "🔴";
+    parts.push("### Confidence\n");
+    parts.push(`${emoji} **${result.confidence}%**\n`);
   }
 
-  parts.push("\n---");
-  parts.push("*Powered by [Logytics Pro](https://logytics.dev)*");
+  // Fix PR
+  if (result.fixPrUrl) {
+    parts.push("### 🔧 Auto-Fix PR\n");
+    parts.push(`A fix has been automatically generated: [View PR](${result.fixPrUrl})\n`);
+  }
+
+  // Footer
+  parts.push("---");
+  parts.push("*Powered by [Logytics](https://logytics.dev)*");
+  parts.push("*Job summary generated at run-time*");
 
   return parts.join("\n");
 }
@@ -32161,12 +32386,15 @@ const { cleanLogs } = __nccwpck_require__(6696);
 const { generateSignature } = __nccwpck_require__(32);
 const { sendToApi } = __nccwpck_require__(4361);
 const { formatSummary } = __nccwpck_require__(1320);
+const { createFixPR } = __nccwpck_require__(1604);
 
 async function run() {
   try {
     const apiKey = core.getInput("logytics-api-key", { required: true });
-    const apiUrl = core.getInput("api-url") || "https://api.logytics.dev";
+    const apiUrl = core.getInput("api-url") || "https://website-production-28cf.up.railway.app";
     const openaiKey = core.getInput("openai-api-key");
+    const githubToken = core.getInput("github-token") || process.env.GITHUB_TOKEN;
+    const makeFix = core.getInput("make-fix") === "true";
 
     const { context } = github;
     const repo = `${context.repo.owner}/${context.repo.repo}`;
@@ -32174,7 +32402,14 @@ async function run() {
     const workflowName = context.workflow;
 
     core.info("Logytics: Collecting CI logs...");
-    const rawLogs = await collectLogs();
+    const { logs: rawLogs, failedSteps } = await collectLogs(githubToken);
+
+    if (failedSteps.length > 0) {
+      core.info(`Logytics: Found ${failedSteps.length} failed step(s)`);
+      failedSteps.forEach(step => {
+        core.info(`  - ${step.jobName} > ${step.stepName}`);
+      });
+    }
 
     core.info("Logytics: Processing logs...");
     const cleanedLogs = cleanLogs(rawLogs);
@@ -32188,6 +32423,8 @@ async function run() {
       workflowName,
       logs: cleanedLogs,
       signature,
+      failedSteps,
+      generateCodeFix: makeFix,
     };
 
     core.info("Logytics: Sending to API...");
@@ -32198,8 +32435,30 @@ async function run() {
     core.setOutput("is-recurring", result.isRecurring);
     core.setOutput("root-cause", result.rootCause || "");
     core.setOutput("suggested-fix", result.suggestedFix || "");
+    core.setOutput("failed-steps", JSON.stringify(failedSteps));
 
-    const summary = formatSummary(result);
+    // Create fix PR if requested and code fix is available
+    let fixPrUrl = null;
+    if (makeFix && result.codeFix) {
+      core.info("Logytics: Creating fix PR...");
+      fixPrUrl = await createFixPR(githubToken, result, context);
+      if (fixPrUrl) {
+        core.setOutput("fix-pr-url", fixPrUrl);
+        core.info(`Logytics: Fix PR created: ${fixPrUrl}`);
+      }
+    }
+
+    // Add PR link to summary if created
+    if (fixPrUrl) {
+      result.fixPrUrl = fixPrUrl;
+    }
+
+    const summaryContext = {
+      workflowName: context.workflow,
+      branch: context.ref?.replace("refs/heads/", "") || "unknown",
+      commitSha: context.sha,
+    };
+    const summary = formatSummary(result, failedSteps, summaryContext);
     await core.summary.addRaw(summary).write();
 
     if (result.isRecurring) {

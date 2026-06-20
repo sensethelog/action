@@ -17,10 +17,11 @@ async function getFailedSteps(token) {
     });
 
     for (const job of jobs.jobs) {
-      if (job.status === "completed") {
+      if (job.status === "completed" || job.status === "in_progress") {
         for (const step of job.steps || []) {
           if (step.conclusion === "failure") {
             failedSteps.push({
+              jobId: job.id,
               jobName: job.name,
               stepName: step.name,
               stepNumber: step.number,
@@ -38,10 +39,41 @@ async function getFailedSteps(token) {
   return failedSteps;
 }
 
+async function fetchJobLogs(token, jobId) {
+  try {
+    const octokit = github.getOctokit(token);
+    const { context } = github;
+
+    const { data } = await octokit.rest.actions.downloadJobLogsForWorkflowRun({
+      owner: context.repo.owner,
+      repo: context.repo.repo,
+      job_id: jobId,
+    });
+
+    return data;
+  } catch (e) {
+    core.warning(`Could not fetch job logs: ${e.message}`);
+    return null;
+  }
+}
+
 async function collectLogs(token) {
   const logs = [];
   const failedSteps = await getFailedSteps(token);
 
+  // Fetch actual job logs from GitHub API
+  const jobIds = [...new Set(failedSteps.map(s => s.jobId))];
+  for (const jobId of jobIds) {
+    if (jobId) {
+      core.info(`Fetching logs for job ${jobId}...`);
+      const jobLogs = await fetchJobLogs(token, jobId);
+      if (jobLogs) {
+        logs.push(jobLogs);
+      }
+    }
+  }
+
+  // Also check GITHUB_STEP_SUMMARY
   if (process.env.GITHUB_STEP_SUMMARY) {
     try {
       const summaryPath = process.env.GITHUB_STEP_SUMMARY;
@@ -49,16 +81,16 @@ async function collectLogs(token) {
         logs.push(fs.readFileSync(summaryPath, "utf8"));
       }
     } catch (e) {
+      // ignore
     }
   }
 
+  // Check for common log files
   const workspace = process.env.GITHUB_WORKSPACE || ".";
-
   const logPatterns = [
     "npm-debug.log",
     "yarn-error.log",
     "pnpm-debug.log",
-    ".npm/_logs/*.log",
     "jest.log",
     "test-results.log",
   ];
@@ -73,25 +105,32 @@ async function collectLogs(token) {
         }
       }
     } catch (e) {
+      // ignore
     }
   }
 
+  // Check env vars
   if (process.env.BUILD_LOG) {
     logs.push(process.env.BUILD_LOG);
   }
-
   if (process.env.TEST_OUTPUT) {
     logs.push(process.env.TEST_OUTPUT);
   }
 
   if (logs.length === 0) {
     return {
-      logs: "No logs collected. Ensure previous steps output logs to standard files.",
+      logs: "No logs collected. The action runs after the failed step completes.",
       failedSteps
     };
   }
 
-  return { logs: logs.join("\n\n"), failedSteps };
+  // Combine and limit size
+  let combined = logs.join("\n\n");
+  if (combined.length > 50000) {
+    combined = combined.substring(combined.length - 50000);
+  }
+
+  return { logs: combined, failedSteps };
 }
 
 module.exports = { collectLogs, getFailedSteps };
