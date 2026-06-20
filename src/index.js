@@ -5,6 +5,7 @@ const { cleanLogs } = require("./logCleaner");
 const { generateSignature } = require("./signature");
 const { sendToApi } = require("./apiClient");
 const { formatSummary } = require("./formatter");
+const { createFixPR } = require("./fixGenerator");
 
 async function run() {
   try {
@@ -12,6 +13,7 @@ async function run() {
     const apiUrl = core.getInput("api-url") || "https://website-production-28cf.up.railway.app";
     const openaiKey = core.getInput("openai-api-key");
     const githubToken = core.getInput("github-token") || process.env.GITHUB_TOKEN;
+    const makeFix = core.getInput("make-fix") === "true";
 
     const { context } = github;
     const repo = `${context.repo.owner}/${context.repo.repo}`;
@@ -41,6 +43,7 @@ async function run() {
       logs: cleanedLogs,
       signature,
       failedSteps,
+      generateCodeFix: makeFix,
     };
 
     core.info("Logytics: Sending to API...");
@@ -53,7 +56,28 @@ async function run() {
     core.setOutput("suggested-fix", result.suggestedFix || "");
     core.setOutput("failed-steps", JSON.stringify(failedSteps));
 
-    const summary = formatSummary(result, failedSteps);
+    // Create fix PR if requested and code fix is available
+    let fixPrUrl = null;
+    if (makeFix && result.codeFix) {
+      core.info("Logytics: Creating fix PR...");
+      fixPrUrl = await createFixPR(githubToken, result, context);
+      if (fixPrUrl) {
+        core.setOutput("fix-pr-url", fixPrUrl);
+        core.info(`Logytics: Fix PR created: ${fixPrUrl}`);
+      }
+    }
+
+    // Add PR link to summary if created
+    if (fixPrUrl) {
+      result.fixPrUrl = fixPrUrl;
+    }
+
+    const summaryContext = {
+      workflowName: context.workflow,
+      branch: context.ref?.replace("refs/heads/", "") || "unknown",
+      commitSha: context.sha,
+    };
+    const summary = formatSummary(result, failedSteps, summaryContext);
     await core.summary.addRaw(summary).write();
 
     if (result.isRecurring) {

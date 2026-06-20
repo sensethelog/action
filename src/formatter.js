@@ -1,47 +1,79 @@
-function formatSummary(result, failedSteps = []) {
+function formatSummary(result, failedSteps = [], context = {}) {
   const parts = [];
 
-  parts.push("## Logytics Pro Analysis\n");
+  // Header
+  parts.push("## Logytics Analysis\n");
 
-  if (result.isRecurring) {
-    parts.push(`> **Warning**: This is a recurring failure (seen ${result.occurrences} times)\n`);
+  // Workflow info
+  const workflowInfo = [];
+  if (context.workflowName) workflowInfo.push(`Workflow: ${context.workflowName}`);
+  if (context.branch) workflowInfo.push(`Branch: ${context.branch}`);
+  if (context.commitSha) workflowInfo.push(`Commit: ${context.commitSha.substring(0, 7)}`);
+  if (workflowInfo.length > 0) {
+    parts.push(`**${workflowInfo.join(" | ")}**\n`);
   }
 
+  // Recurring warning
+  if (result.isRecurring) {
+    parts.push(`> ⚠️ **Recurring Failure** - This issue has occurred ${result.occurrences} times\n`);
+  }
+
+  // Failed Steps
   if (failedSteps.length > 0) {
     parts.push("### Failed Steps\n");
-    parts.push(`| Job | Step | Started | Completed |`);
-    parts.push(`| --- | --- | --- | --- |`);
     failedSteps.forEach(step => {
-      const started = step.startedAt ? new Date(step.startedAt).toLocaleTimeString() : "-";
-      const completed = step.completedAt ? new Date(step.completedAt).toLocaleTimeString() : "-";
-      parts.push(`| ${step.jobName} | **${step.stepName}** | ${started} | ${completed} |`);
+      parts.push(`- ❌ **${step.jobName}** → ${step.stepName}`);
     });
     parts.push("");
   }
 
-  parts.push("### Failure Details\n");
-  parts.push(`| Property | Value |`);
-  parts.push(`| --- | --- |`);
-  parts.push(`| **Signature** | \`${result.signature}\` |`);
-  parts.push(`| **Failure ID** | \`${result.id}\` |`);
-  parts.push(`| **Recurring** | ${result.isRecurring ? "Yes" : "No"} |`);
-
+  // Root Cause
   if (result.rootCause) {
-    parts.push("\n### Root Cause\n");
+    parts.push("### Root Cause\n");
     parts.push(result.rootCause);
+    parts.push("");
   }
 
+  // Key Error
+  if (result.keyError) {
+    parts.push("### Key Error\n");
+    parts.push("```");
+    parts.push(result.keyError);
+    parts.push("```");
+    parts.push("");
+  }
+
+  // Explanation
+  if (result.explanation) {
+    parts.push("### Explanation\n");
+    parts.push(result.explanation);
+    parts.push("");
+  }
+
+  // Suggested Fix
   if (result.suggestedFix) {
-    parts.push("\n### Suggested Fix\n");
+    parts.push("### Suggested Fix\n");
     parts.push(result.suggestedFix);
+    parts.push("");
   }
 
+  // Confidence
   if (result.confidence) {
-    parts.push(`\n*Analysis confidence: ${result.confidence}%*`);
+    const emoji = result.confidence >= 80 ? "🟢" : result.confidence >= 50 ? "🟡" : "🔴";
+    parts.push("### Confidence\n");
+    parts.push(`${emoji} **${result.confidence}%**\n`);
   }
 
-  parts.push("\n---");
-  parts.push("*Powered by [Logytics Pro](https://logytics.dev)*");
+  // Fix PR
+  if (result.fixPrUrl) {
+    parts.push("### 🔧 Auto-Fix PR\n");
+    parts.push(`A fix has been automatically generated: [View PR](${result.fixPrUrl})\n`);
+  }
+
+  // Footer
+  parts.push("---");
+  parts.push("*Powered by [Logytics](https://logytics.dev)*");
+  parts.push("*Job summary generated at run-time*");
 
   return parts.join("\n");
 }

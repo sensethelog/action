@@ -20,6 +20,10 @@ inputs:
   openai-api-key:
     description: 'OpenAI API key for free mode analysis (optional)'
     required: false
+  make-fix:
+    description: 'Create a PR with the suggested fix (requires write permissions)'
+    required: false
+    default: 'false'
 
 outputs:
   failure-id:
@@ -34,6 +38,8 @@ outputs:
     description: 'AI-suggested fix for the failure'
   failed-steps:
     description: 'JSON array of failed steps with job and step names'
+  fix-pr-url:
+    description: 'URL of the fix PR (if make-fix was true)'
 
 runs:
   using: 'node20'
