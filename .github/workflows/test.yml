@@ -22,29 +22,32 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Run failing test
-        id: test
+      - name: Create test log
         run: |
-          {
-            echo "> jest --coverage"
-            echo ""
-            echo "FAIL src/utils.test.js"
-            echo "  ● validateInput › should reject invalid email"
-            echo ""
-            echo "    TypeError: Cannot read properties of undefined (reading 'email')"
-            echo ""
-            echo "      40 |   const validateInput = (data) => {"
-            echo "      41 |     if (!data) throw new Error('Data required');"
-            echo "    > 42 |     return data.email.includes('@');"
-            echo "         |                ^"
-            echo "      43 |   };"
-            echo ""
-            echo "      at validateInput (src/utils.js:42:16)"
-            echo "      at Object.<anonymous> (src/utils.test.js:15:5)"
-            echo ""
-            echo "Test Suites: 1 failed, 1 total"
-            echo "Tests:       1 failed, 2 passed, 3 total"
-          } 2>&1 | tee test-output.log
+          cat > test-output.log << 'TESTLOG'
+          > jest --coverage
+
+          FAIL src/utils.test.js
+            ● validateInput › should reject invalid email
+
+              TypeError: Cannot read properties of undefined (reading 'email')
+
+                40 |   const validateInput = (data) => {
+                41 |     if (!data) throw new Error('Data required');
+              > 42 |     return data.email.includes('@');
+                   |                ^
+                43 |   };
+
+                at validateInput (src/utils.js:42:16)
+                at Object.<anonymous> (src/utils.test.js:15:5)
+
+          Test Suites: 1 failed, 1 total
+          Tests:       1 failed, 2 passed, 3 total
+          TESTLOG
+
+      - name: Run failing test
+        run: |
+          cat test-output.log
           exit 1
 
       - name: Logytics Analysis
