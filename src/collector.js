@@ -16,9 +16,14 @@ async function getFailedSteps(token) {
       run_id: context.runId,
     });
 
+    core.info(`Found ${jobs.jobs.length} job(s) in workflow run`);
+
     for (const job of jobs.jobs) {
+      core.info(`Job: ${job.name} (status: ${job.status}, steps: ${job.steps?.length || 0})`);
+
       if (job.status === "completed" || job.status === "in_progress") {
         for (const step of job.steps || []) {
+          core.info(`  Step: ${step.name} (status: ${step.status}, conclusion: ${step.conclusion})`);
           if (step.conclusion === "failure") {
             failedSteps.push({
               jobId: job.id,
@@ -32,6 +37,8 @@ async function getFailedSteps(token) {
         }
       }
     }
+
+    core.info(`Found ${failedSteps.length} failed step(s)`);
   } catch (e) {
     core.warning(`Could not fetch failed steps: ${e.message}`);
   }
