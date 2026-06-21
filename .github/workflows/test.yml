@@ -176,9 +176,66 @@ jobs:
           echo "  - REDIS_URL"
           exit 1
 
+  test-terraform-error:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Terraform Plan
+        run: |
+          echo "> terraform plan"
+          echo ""
+          echo "Refreshing Terraform state in-memory prior to plan..."
+          echo ""
+          echo "Error: Reference to undeclared resource"
+          echo ""
+          echo "  on main.tf line 42, in resource \"aws_security_group_rule\" \"allow_http\":"
+          echo "  42:   security_group_id = aws_security_group.web.id"
+          echo ""
+          echo "A managed resource \"aws_security_group\" \"web\" has not been declared in the"
+          echo "root module."
+          echo ""
+          echo "Did you mean the resource aws_security_group.app?"
+          echo ""
+          echo "Error: Invalid reference"
+          echo ""
+          echo "  on variables.tf line 18:"
+          echo "  18:   default = var.undefined_variable"
+          echo ""
+          echo "A reference to a variable cannot be used in the default value of that variable."
+          exit 1
+
+  test-cloudformation-error:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy CloudFormation Stack
+        run: |
+          echo "> aws cloudformation deploy --template-file template.yaml --stack-name prod-api"
+          echo ""
+          echo "Waiting for changeset to be created..."
+          echo ""
+          echo "Failed to create/update the stack. Run the following command"
+          echo "to fetch the list of events leading up to the failure"
+          echo ""
+          echo "aws cloudformation describe-stack-events --stack-name prod-api"
+          echo ""
+          echo "Resource creation failed:"
+          echo "  LogicalResourceId: ApiGatewayRestApi"
+          echo "  ResourceType: AWS::ApiGateway::RestApi"
+          echo "  ResourceStatusReason: Property validation failure: [Value of property /Body/paths/~1users/get must be an object]"
+          echo ""
+          echo "Stack [prod-api] rollback triggered due to CREATE_FAILED on resource [ApiGatewayRestApi]"
+          echo ""
+          echo "ROLLBACK_COMPLETE"
+          exit 1
+
   analyze:
     runs-on: ubuntu-latest
-    needs: [test-typescript-error, test-module-error, test-continue-on-error, test-timeout-error, test-dependency-error, test-connection-error, test-env-var-error]
+    needs: [test-typescript-error, test-module-error, test-continue-on-error, test-timeout-error, test-dependency-error, test-connection-error, test-env-var-error, test-terraform-error, test-cloudformation-error]
     if: always()
     steps:
       - name: Logytics Analysis

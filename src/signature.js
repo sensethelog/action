@@ -64,6 +64,24 @@ const patterns = [
   { pattern: /compilation.*error/i, signature: "compilation_error" },
   { pattern: /error Command failed/i, signature: "command_failed" },
   { pattern: /exit code [1-9]/i, signature: "exit_error" },
+
+  // Terraform errors
+  { pattern: /Error: Reference to undeclared resource/i, signature: "terraform_undeclared_resource" },
+  { pattern: /Error: Invalid reference/i, signature: "terraform_invalid_reference" },
+  { pattern: /Error: Missing required argument/i, signature: "terraform_missing_argument" },
+  { pattern: /Error: Unsupported attribute/i, signature: "terraform_unsupported_attribute" },
+  { pattern: /terraform.*plan.*failed/i, signature: "terraform_plan_error" },
+  { pattern: /terraform.*apply.*failed/i, signature: "terraform_apply_error" },
+  { pattern: /Error acquiring the state lock/i, signature: "terraform_state_lock" },
+
+  // CloudFormation errors
+  { pattern: /Stack.*rollback/i, signature: "cloudformation_rollback" },
+  { pattern: /ROLLBACK_COMPLETE/i, signature: "cloudformation_rollback" },
+  { pattern: /CREATE_FAILED/i, signature: "cloudformation_create_failed" },
+  { pattern: /UPDATE_FAILED/i, signature: "cloudformation_update_failed" },
+  { pattern: /Property validation failure/i, signature: "cloudformation_validation_error" },
+  { pattern: /Resource creation failed/i, signature: "cloudformation_resource_failed" },
+  { pattern: /cloudformation.*failed/i, signature: "cloudformation_error" },
 ];
 
 function simpleHash(str) {
