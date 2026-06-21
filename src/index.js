@@ -23,8 +23,11 @@ async function run() {
     const commitSha = context.payload.workflow_run?.head_sha || context.sha;
     const workflowName = context.payload.workflow_run?.name || context.workflow;
     const runId = workflowRunId || context.payload.workflow_run?.id || context.runId;
+    const branch = context.payload.workflow_run?.head_branch || context.ref?.replace("refs/heads/", "") || "unknown";
+    const runUrl = `https://github.com/${repo}/actions/runs/${runId}`;
 
     core.info(`SenseTheLog: Analyzing workflow run ${runId}...`);
+    core.info(`SenseTheLog: Branch: ${branch}`);
     core.info("SenseTheLog: Collecting CI logs...");
     const { logs: rawLogs, failedSteps } = await collectLogs(githubToken, runId);
 
@@ -45,6 +48,9 @@ async function run() {
       repo,
       commitSha,
       workflowName,
+      branch,
+      runId: String(runId),
+      runUrl,
       logs: cleanedLogs,
       signature,
       failedSteps,
