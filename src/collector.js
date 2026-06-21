@@ -74,7 +74,7 @@ async function fetchJobLogs(token, jobId) {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Accept': 'application/vnd.github.v3+json',
-        'User-Agent': 'logytics-action'
+        'User-Agent': 'sensethelog-action'
       },
       redirect: 'follow'
     });
@@ -177,7 +177,7 @@ async function collectLogs(token, runId) {
     // Fetch logs for ALL completed jobs - let AI analyze everything
     for (const job of jobs.jobs) {
       // Skip the analyze job itself
-      if (job.name.toLowerCase().includes('analyze') || job.name.toLowerCase().includes('logytics')) {
+      if (job.name.toLowerCase().includes('analyze') || job.name.toLowerCase().includes('sensethelog')) {
         core.info(`Skipping analysis job: ${job.name}`);
         continue;
       }

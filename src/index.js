@@ -9,7 +9,7 @@ const { createFixPR } = require("./fixGenerator");
 
 async function run() {
   try {
-    const apiKey = core.getInput("logytics-api-key", { required: true });
+    const apiKey = core.getInput("sensethelog-api-key", { required: true });
     const apiUrl = core.getInput("api-url") || "https://website-production-28cf.up.railway.app";
     const openaiKey = core.getInput("openai-api-key");
     const githubToken = core.getInput("github-token") || process.env.GITHUB_TOKEN;
@@ -24,22 +24,22 @@ async function run() {
     const workflowName = context.payload.workflow_run?.name || context.workflow;
     const runId = workflowRunId || context.payload.workflow_run?.id || context.runId;
 
-    core.info(`Logytics: Analyzing workflow run ${runId}...`);
-    core.info("Logytics: Collecting CI logs...");
+    core.info(`SenseTheLog: Analyzing workflow run ${runId}...`);
+    core.info("SenseTheLog: Collecting CI logs...");
     const { logs: rawLogs, failedSteps } = await collectLogs(githubToken, runId);
 
     if (failedSteps.length > 0) {
-      core.info(`Logytics: Found ${failedSteps.length} failed step(s)`);
+      core.info(`SenseTheLog: Found ${failedSteps.length} failed step(s)`);
       failedSteps.forEach(step => {
         core.info(`  - ${step.jobName} > ${step.stepName}`);
       });
     }
 
-    core.info("Logytics: Processing logs...");
+    core.info("SenseTheLog: Processing logs...");
     const cleanedLogs = cleanLogs(rawLogs);
     const signature = generateSignature(cleanedLogs);
 
-    core.info(`Logytics: Detected signature: ${signature}`);
+    core.info(`SenseTheLog: Detected signature: ${signature}`);
 
     const payload = {
       repo,
@@ -51,13 +51,13 @@ async function run() {
       generateCodeFix: makeFix,
     };
 
-    core.info("Logytics: Sending to API...");
+    core.info("SenseTheLog: Sending to API...");
     const result = await sendToApi(apiUrl, apiKey, payload, openaiKey);
 
     // Map API response (failures array) to formatter format (errors array)
     if (result.failures && result.failures.length > 0) {
       result.errors = result.failures;
-      core.info(`Logytics: Found ${result.failures.length} error(s)`);
+      core.info(`SenseTheLog: Found ${result.failures.length} error(s)`);
     }
 
     core.setOutput("failure-id", result.id);
@@ -71,11 +71,11 @@ async function run() {
     // Create fix PR if requested and code fix is available
     let fixPrUrl = null;
     if (makeFix && result.codeFix) {
-      core.info("Logytics: Creating fix PR...");
+      core.info("SenseTheLog: Creating fix PR...");
       fixPrUrl = await createFixPR(githubToken, result, context);
       if (fixPrUrl) {
         core.setOutput("fix-pr-url", fixPrUrl);
-        core.info(`Logytics: Fix PR created: ${fixPrUrl}`);
+        core.info(`SenseTheLog: Fix PR created: ${fixPrUrl}`);
       }
     }
 
@@ -93,12 +93,12 @@ async function run() {
     await core.summary.addRaw(summary).write();
 
     if (result.isRecurring) {
-      core.warning(`Logytics: This is a recurring failure (seen ${result.occurrences} times)`);
+      core.warning(`SenseTheLog: This is a recurring failure (seen ${result.occurrences} times)`);
     }
 
-    core.info("Logytics: Analysis complete");
+    core.info("SenseTheLog: Analysis complete");
   } catch (error) {
-    core.setFailed(`Logytics error: ${error.message}`);
+    core.setFailed(`SenseTheLog error: ${error.message}`);
   }
 }
 

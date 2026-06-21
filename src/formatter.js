@@ -57,7 +57,7 @@ function formatSummary(result, failedSteps = [], context = {}) {
   const parts = [];
 
   // Header
-  parts.push("## Logytics Analysis\n");
+  parts.push("## SenseTheLog Analysis\n");
 
   // Workflow info
   const workflowInfo = [];
@@ -146,7 +146,7 @@ function formatSummary(result, failedSteps = [], context = {}) {
 
   // Footer
   parts.push("---");
-  parts.push("*Powered by [Logytics](https://logytics.dev)*");
+  parts.push("*Powered by [SenseTheLog](https://sensethelog.com)*");
 
   return parts.join("\n");
 }

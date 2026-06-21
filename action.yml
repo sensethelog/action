@@ -1,20 +1,20 @@
-name: 'Logytics Pro CI Intelligence'
+name: 'SenseTheLog CI Intelligence'
 description: 'Analyze CI failures and get AI-powered insights'
-author: 'Logytics'
+author: 'SenseTheLog'
 branding:
   icon: 'zap'
   color: 'purple'
 
 inputs:
-  logytics-api-key:
-    description: 'Your Logytics Pro API key'
+  sensethelog-api-key:
+    description: 'Your SenseTheLog API key'
     required: true
   github-token:
     description: 'GitHub token to fetch failed step details (defaults to GITHUB_TOKEN)'
     required: false
     default: ${{ github.token }}
   api-url:
-    description: 'Logytics Pro API URL (optional)'
+    description: 'SenseTheLog API URL (optional)'
     required: false
     default: 'https://website-production-28cf.up.railway.app'
   openai-api-key:

@@ -1,7 +1,7 @@
 {
-  "name": "@logytics/action",
+  "name": "@sensethelog/action",
   "version": "1.0.0",
-  "description": "GitHub Action for Logytics Pro CI intelligence",
+  "description": "GitHub Action for SenseTheLog CI intelligence",
   "main": "dist/index.js",
   "scripts": {
     "build": "ncc build src/index.js -o dist",

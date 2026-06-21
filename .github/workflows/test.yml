@@ -1,4 +1,4 @@
-name: Test Logytics Action
+name: Test SenseTheLog Action
 
 on:
   workflow_dispatch:
@@ -238,8 +238,8 @@ jobs:
     needs: [test-typescript-error, test-module-error, test-continue-on-error, test-timeout-error, test-dependency-error, test-connection-error, test-env-var-error, test-terraform-error, test-cloudformation-error]
     if: always()
     steps:
-      - name: Logytics Analysis
-        uses: logytics-pro/action@v1
+      - name: SenseTheLog Analysis
+        uses: sensethelog/action@v1
         with:
-          logytics-api-key: ${{ secrets.LOGYTICS_API_KEY }}
+          sensethelog-api-key: ${{ secrets.SENSETHELOG_API_KEY }}
           workflow-run-id: ${{ github.run_id }}

@@ -1,4 +1,4 @@
-# Logytics GitHub Action
+# SenseTheLog GitHub Action
 
 AI-powered CI/CD failure analysis. Get instant root cause analysis, suggested fixes, and pattern detection for your GitHub Actions workflows.
 
@@ -6,18 +6,18 @@ AI-powered CI/CD failure analysis. Get instant root cause analysis, suggested fi
 
 ### 1. Get your API key
 
-Sign up at [logytics.pro](https://logytics.pro) and create an API key in Settings.
+Sign up at [sensethelog.com](https://sensethelog.com) and create an API key in Settings.
 
 ### 2. Add the secret to your repository
 
 Go to your GitHub repository → **Settings** → **Secrets and variables** → **Actions** → **New repository secret**
 
-- **Name:** `LOGYTICS_API_KEY`
-- **Value:** Your API key from Logytics
+- **Name:** `SENSETHELOG_API_KEY`
+- **Value:** Your API key from SenseTheLog
 
 ### 3. Add to your workflow
 
-Add the Logytics action as a separate job that runs when other jobs fail:
+Add the SenseTheLog action as a separate job that runs when other jobs fail:
 
 ```yaml
 name: CI Pipeline
@@ -50,19 +50,19 @@ jobs:
       - run: npm install
       - run: npm run lint
 
-  # Logytics analysis job - runs when any job fails
+  # SenseTheLog analysis job - runs when any job fails
   analyze:
     runs-on: ubuntu-latest
     needs: [build, lint]
     if: failure()
     steps:
-      - name: Analyze failures with Logytics
-        uses: logytics-pro/action@v1
+      - name: Analyze failures with SenseTheLog
+        uses: sensethelog/action@v1
         with:
-          logytics-api-key: ${{ secrets.LOGYTICS_API_KEY }}
+          sensethelog-api-key: ${{ secrets.SENSETHELOG_API_KEY }}
 ```
 
-That's it! When any job fails, Logytics will:
+That's it! When any job fails, SenseTheLog will:
 - Detect which steps failed
 - Analyze the error logs with AI
 - Provide root cause and suggested fixes
@@ -74,7 +74,7 @@ That's it! When any job fails, Logytics will:
 - **AI Analysis** - GPT-powered root cause analysis and fix suggestions
 - **Pattern Detection** - Identifies recurring failures across your repos
 - **GitHub Summary** - See analysis directly in the Actions summary tab
-- **Dashboard** - View all failures, trends, and insights at logytics.pro
+- **Dashboard** - View all failures, trends, and insights at sensethelog.com
 
 ## Configuration Options
 
@@ -82,7 +82,7 @@ That's it! When any job fails, Logytics will:
 
 | Input | Description | Required | Default |
 |-------|-------------|----------|---------|
-| `logytics-api-key` | Your Logytics API key | Yes | - |
+| `sensethelog-api-key` | Your SenseTheLog API key | Yes | - |
 | `workflow-run-id` | Workflow run ID to analyze | No | Current run |
 | `github-token` | Token for fetching logs | No | `github.token` |
 
@@ -111,9 +111,9 @@ jobs:
       # Add at the end of your job
       - name: Analyze on failure
         if: failure()
-        uses: logytics-pro/action@v1
+        uses: sensethelog/action@v1
         with:
-          logytics-api-key: ${{ secrets.LOGYTICS_API_KEY }}
+          sensethelog-api-key: ${{ secrets.SENSETHELOG_API_KEY }}
 ```
 
 ### Multiple Jobs (Recommended)
@@ -144,28 +144,28 @@ jobs:
     needs: [test, build, deploy]
     if: failure()
     steps:
-      - uses: logytics-pro/action@v1
+      - uses: sensethelog/action@v1
         with:
-          logytics-api-key: ${{ secrets.LOGYTICS_API_KEY }}
+          sensethelog-api-key: ${{ secrets.SENSETHELOG_API_KEY }}
 ```
 
 ### Using Outputs
 
 ```yaml
 - name: Analyze failure
-  id: logytics
+  id: sensethelog
   if: failure()
-  uses: logytics-pro/action@v1
+  uses: sensethelog/action@v1
   with:
-    logytics-api-key: ${{ secrets.LOGYTICS_API_KEY }}
+    sensethelog-api-key: ${{ secrets.SENSETHELOG_API_KEY }}
 
 - name: Comment on PR
   if: failure()
   uses: actions/github-script@v7
   with:
     script: |
-      const rootCause = '${{ steps.logytics.outputs.root-cause }}';
-      const fix = '${{ steps.logytics.outputs.suggested-fix }}';
+      const rootCause = '${{ steps.sensethelog.outputs.root-cause }}';
+      const fix = '${{ steps.sensethelog.outputs.suggested-fix }}';
       github.rest.issues.createComment({
         owner: context.repo.owner,
         repo: context.repo.repo,
@@ -176,7 +176,7 @@ jobs:
 
 ## Supported Error Types
 
-Logytics can analyze many types of CI failures:
+SenseTheLog can analyze many types of CI failures:
 
 | Category | Examples |
 |----------|----------|
@@ -200,9 +200,9 @@ permissions:
 
 ## Support
 
-- **Dashboard:** [logytics.pro](https://logytics.pro)
-- **Issues:** [GitHub Issues](https://github.com/logytics-pro/action/issues)
-- **Email:** support@logytics.pro
+- **Dashboard:** [sensethelog.com](https://sensethelog.com)
+- **Issues:** [GitHub Issues](https://github.com/sensethelog/action/issues)
+- **Email:** support@sensethelog.com
 
 ## License
 
